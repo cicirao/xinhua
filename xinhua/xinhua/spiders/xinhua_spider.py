@@ -4,15 +4,18 @@ from xinhua.items import XinhuaItem
 
 import requests
 import json
-from scrapy.selector import Selector, HtmlXPathSelector
+from scrapy.selector import Selector
 
 import urllib
 
 class XinhuaSpider(scrapy.Spider):
   name = "xinhua"
-  # download_delay = 1 
+  download_delay = 1 
   allowed_domains = ["info.search.news.cn"]
-  start_urls = ["http://info.search.news.cn/result.jspa?pno=1&rp=40&t1=0&btn=%CB%D1+%CB%F7&t=1&n1=%D7%D4%C8%BB%D6%AE%D3%D1&np=1&ct=%D0%C2%BB%AA%CD%F8&ss=2"]
+  start_urls = ["http://info.search.news.cn/result.jspa?pno=21&rp=40&t1=0&btn=%CB%D1+%CB%F7&t=1&n1=%D7%D4%C8%BB%D6%AE%D3%D1&np=1&ct=%25%3F%25%3F%25%3F%25%3F%25%3F%25%3F%25%3F%25%3F&ss=2"]
+  # def start_requests(self):
+  #   for i in xrange(31, 41):
+  #     yield self.make_requests_from_url("http://info.search.news.cn/result.jspa?pno=%d&rp=40&t1=0&btn=%%CB%%D1+%%CB%%F7&t=1&n1=%%D7%%D4%%C8%%BB%%D6%%AE%%D3%%D1&np=1&ct=%%25%%3F%%25%%3F%%25%%3F%%25%%3F%%25%%3F%%25%%3F%%25%%3F%%25%%3F&ss=2" % i)
 
   def parse(self, response):
     for page in response.xpath('//div[@align="left"]')[:-1]:
@@ -26,31 +29,40 @@ class XinhuaSpider(scrapy.Spider):
       item['title'] = title.encode('utf-8')
       item['link'] = link
       item['published_at'] = published_at
- 
-      d = urllib.urlopen(link)
-      if d.getcode() == 200: # check if valid
-        data = d.read()  
-        hxs = HtmlXPathSelector(text=data)
 
-        if hxs.select('//p/text()').extract():
-          content = hxs.select('//p/text()').extract()
-          for i in content:
-            i = i.encode('utf-8')
-          item['content'] = content
+      try:
+        d = urllib.urlopen(link)
+        if d.getcode() == 200: # check if valid
+          data = d.read()  
+          r = requests.get(link)
+          if r.encoding == 'gb2312':
+            data = unicode(data, "gb2312").encode("utf8")
+          elif r.encoding == 'gbk':
+            data = unicode(data, "gbk").encode("utf8")
+          hxs = Selector(text=data)
+          if hxs.xpath('//p').extract():
+            # if hxs.select('//p/span/text()').extract():
+            #   content = hxs.select('//p').extract()
+            # else: 
+            content = hxs.xpath('//p/text()').extract()
+            for i in content:
+              i = i.encode('utf-8')
+            item['content'] = content
+          else:
+            item['content'] = "no p tag"
         else:
-          item['content'] = "no p tag"
-      else:
-        item['content'] = "can not load page"
+          item['content'] = "can not load page"
 
+      except Exception,e:
+        item['content'] = "This webpage is not available"
       yield item
 
-  # for url in urls:
-      urls = response.xpath('//div[@align="left"]/u/a/@href').extract()
-      for url in urls:
-        print url
-        url = "http://info.search.news.cn/" + url
-        print url
-        yield Request(url, callback=self.parse)
+    # for url in urls:
+    url = "http://info.search.news.cn/" + response.xpath('//div[@align="left"]/u/a/@href').extract()[-1]
+    # print url
+    # url = "http://info.search.news.cn/" + url
+    print url
+    yield Request(url, callback=self.parse)
 
   
 #   def parse_detail(self, response):
