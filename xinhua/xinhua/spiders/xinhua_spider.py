@@ -7,6 +7,7 @@ import json
 from scrapy.selector import Selector
 
 import urllib
+from HTMLParser import HTMLParser
 
 class XinhuaSpider(scrapy.Spider):
   name = "xinhua"
@@ -35,28 +36,27 @@ class XinhuaSpider(scrapy.Spider):
         if d.getcode() == 200: # check if valid
           data = d.read()  
           r = requests.get(link)
-          if r.encoding.lower() != 'utf-8': # convert charset
+          if r.encoding.lower() != 'utf-8' and r.encoding.lower() != 'gbk': # convert charset
+            data = data.decode('gb2312').encoding('utf-8')
+          elif r.encoding.lower() == 'gbk':
             data = data.decode('gbk').encoding('utf-8')
-          print r.encoding
+
           hxs = Selector(text=data)
           
           if hxs.xpath('//p').extract(): # get p node text
-            content = hxs.xpath('//p').extract()
+            content = ''.join(hxs.xpath('//p//text()').extract()).strip()
 
           elif link.startswith('http://www.p5w.net/'): # special website with no p tag
-            content = hxs.xpath('//div[@class="new_content_p BSHARE_POP"]').extract()
+            content = ''.join(hxs.xpath('//div[@class="new_content_p BSHARE_POP"]//text()').extract()).strip()
           elif link.startswith('http://hy.stock.cnfol.com/') or link.startswith('http://news.cnfol.com/'):
-            content = hxs.xpath('//div[@id="__content"]/text()').extract()
+            content = ''.join(hxs.xpath('//div[@id="__content"]//text()').extract()).strip()
           elif link.startswith('http://mzl.wenming.cn/'):
-            content = hxs.xpath('//div[@class="Custom_UnionStyle"]').extract()   
+            content = ''.join(hxs.xpath('//div[@class="Custom_UnionStyle"]//text()').extract()).strip()  
 
-          else:
+          else: # just in case
             content = ["no p tag"]
           
-          for i in content:
-            i = i.encode('utf-8')
-            # re.sub('<[^>]*>', '', i) # remove tags
-          item['content'] = content
+          item['content'] = content # pass value to the instance
         else:
           item['content'] = "can not load page"
 
@@ -71,143 +71,16 @@ class XinhuaSpider(scrapy.Spider):
     print url
     yield Request(url, callback=self.parse)
 
-  
-#   def parse_detail(self, response):
-#     if url.startswith("http://news.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//h1[@id="title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="content"]/text()').extract()
+class MLStripper(HTMLParser):
+    def __init__(self):
+        self.reset()
+        self.fed = []
+    def handle_data(self, d):
+        self.fed.append(d)
+    def get_data(self):
+        return ''.join(self.fed)
 
-#     else if url.startswith("http://www.cq.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@class="title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="article"]').extract()
-
-#     else if url.startswith("http://www.qh.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//td[@class="xilantop"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="Content"]/text()').extract()
-
-#     else if url.startswith("http://www.sc.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@id="s6"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="xhw"]/text()').extract()  
-
-#     else if url.startswith("http://www.he.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@id="newstit"]/h1/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="zhenwen"]/text()').extract()
-
-#     else if url.startswith("http://www.sn.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//td[@class="text_t"]/text()').extract()[0]
-#       item['content'] = response.xpath('//td[@class="text"]/text()').extract()
-
-#     else if url.startswith("http://www.js.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@id="Title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="Content"]/text()').extract()
-
-#     else if url.startswith("http://www.bj.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//h1[@id="title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="contentblock"]/text()').extract()
-
-#     else if url.startswith("http://www.hq.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//h1/text()').extract()[0]
-#       item['content'] = response.xpath('//td[@class="content"]/text()').extract()
-
-#     else if url.startswith("http://www.qstheory.cn/"):
-#       # item['title'] = response.xpath('//div[@class="main"]/h1/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="Text_area"]/text()').extract()
-# # qs text_area may need more specific
-#     else if url.startswith("http://www.zj.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@id="news_content_container"]/h2/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="news_content"]/text()').extract()
-
-#     else if url.startswith("http://sh.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@id="Title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//td[@class="p1"]/text()').extract()
-
-#     else if url.startswith("http://www.jx.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//span[@class="xilanwz"]/text()').extract()[0]
-#       item['content'] = response.xpath('//td[@class="text2"]/text()').extract()
-# ##
-#     else if url.startswith("http://sg.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//span[@class="txt18_xilan"]/text()').extract()[0]
-#       item['content'] = response.xpath('//span[@id="content"]/text()').extract()
-
-#     else if url.startswith("http://www.fj.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//h1/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="Content"]/p/text()').extract()
-
-#     else if url.startswith("http://www.hb.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@class="wz_bt"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="wz_nr"]/p/text()').extract()
-
-#     else if url.startswith("http://www.sd.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@class="title"]/h1/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="content"]/p/text()').extract()
-
-#     else if url.startswith("http://www.ln.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//strong/text()').extract()[1]
-#       item['content'] = response.xpath('//td[@class="hei"]/span/p/text()').extract()
-
-#     else if url.startswith("http://www.xinhuatrip.org/"):
-#       # item['title'] = response.xpath('//h1[@class="detail_title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//ul[@class="detail_content"]/p/text()').extract()
-
-#     else if url.startswith("http://www.sanya.news.cn/"):
-#       # item['title'] = response.xpath('//td[@class="show_title"]/h1/text()').extract()[0]
-#       item['content'] = response.xpath('//td[@class="content1"]/p/text()').extract()
-
-#     else if url.startswith("http://www.gd.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//div[@id="ArticleTit"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="ArticleCnt"]/p/text()').extract()
-
-#     else if url.startswith("http://www.sx.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//span[@id="title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="Content"]/p/text()').extract()
-
-#     else if url.startswith("http://www.gz.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//td[@class="bt"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="zw"]/p/text()').extract()
-
-#     else if url.startswith("http://nb.wenming.cn/"):
-#       # item['title'] = response.xpath('//div[@class="hd"]/h1/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="TRS_Editor"]/p/text()').extract()
-
-#     else if url.startswith("http://zz.wenming.cn/"):
-#       # item['title'] = response.xpath('//div[@class="hd"]/h1/text()').extract()[0]
-#       item['content'] = response.xpath('//span[@class="fontSize14 lineHight23"]/p/text()').extract()
-
-#     else if url.startswith("http://www.ha.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//span[@id="title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="Content"]/p/text()').extract()
-
-#     else if url.startswith("http://bj.wenming.cn/"):
-#       # item['title'] = response.xpath('//div[@id="title_tex"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="tex"]/p/text()').extract()
-
-#     else if url.startswith("http://www.xj.xinhuanet.com/") or url.startswith("http://bt.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//h2/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="ArticleContent"]/p/text()').extract()
-
-#     else if url.startswith("http://www.tj.xinhuanet.com/"):
-#       # item['title'] = response.xpath('//span[@id="title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@id="Content"]/p/text()').extract()
-
-#     else if url.startswith("http://mzl.wenming.cn/"):
-#       # item['title'] = response.xpath('//span[@id="title_tex"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="Custom_UnionStyle"]/text()').extract()
-
-#     else if url.startswith("http://hncd.wenming.cn/"):
-#       # item['title'] = response.xpath('//td[@class="title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="TRS_Editor"]/p/text()').extract()
-
-#     else if url.startswith("http://www.zgpaw.com.cn/"):
-#       # item['title'] = response.xpath('//div[@id="Title"]/text()').extract()[0]
-#       item['content'] = response.xpath('//font[@id="Zoom"]/p/text()').extract()
-
-#     else if url.startswith("http://sxbj.wenming.cn/"):
-#       # item['title'] = response.xpath('//td[@class="title_txt"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="TRS_Editor"]/p/text()').extract()
-
-#     else if url.startswith("http://sxbj.wenming.cn/"):
-#       # item['title'] = response.xpath('//td[@class="title_txt"]/text()').extract()[0]
-#       item['content'] = response.xpath('//div[@class="TRS_Editor"]/p/text()').extract()
-    
-
-#     yield item
+def strip_tags(html):
+    s = MLStripper()
+    s.feed(html)
+    return s.get_data()
